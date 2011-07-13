@@ -20,7 +20,8 @@
 		}		
 	</style>
 <script>
-var messages = [];//,
+var messages = [],
+	users_online = [];//,
 	//chat_property = {login:'',sid:''};
 Ext.onReady(function(){
 	function sendMessage(login){
@@ -65,13 +66,25 @@ Ext.onReady(function(){
 						var str=' ';
 						for(var i=0;i<messages.length;i++){
 							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
-						}														
+						}
 						Ext.getCmp('serverMessage').update(str);
-						
-						crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
+												
 						Ext.getCmp('idMsgChat').show();
 						Ext.getCmp('serverMessage').show();
 						Ext.getCmp('idUsersOnline').show();
+						var winUserOnline = Ext.getCmp('idWinUsersOnline'),
+							windowChatXY = Ext.getCmp('windowChat').getPosition(),
+							windowChatXYSize = Ext.getCmp('windowChat').getSize();
+						winUserOnline.setPosition(windowChatXY[0]+windowChatXYSize.width+50,windowChatXY[1]);						
+						winUserOnline.show();
+						
+						var treeUserOnline = Ext.getCmp('idTreeUserOnline');
+						for(var i=0;i<users_online.length;i++){
+							var newNode = new Ext.tree.TreeNode({id:"'"+users_online[i]+"'", text:users_online[i], leaf: true});
+							treeUserOnline.root.appendChild(newNode);							
+						}
+						
+						crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
 					}
 				});
 			}
@@ -92,19 +105,48 @@ Ext.onReady(function(){
 				//console.log(r);
 				if(action=='getMessage'){
 					if(!r.responseObject.reconnect){
-						messages.push({msg:message,login:login});
+						if(login!='Server'){
+							messages.push({msg:message,login:login});
+						}
 						var str=' ';
+						
 						for(var i=0;i<messages.length;i++){
 							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
-						}														
-						Ext.getCmp('serverMessage').update(str);
-					}
+						}
+												
+						if(login=='Server'){
+							var action_server = r.responseObject.action_server;							
+							switch(action_server){
+								case 'join':
+									str+="<b>Server</b>:"+message+' join</br>';
+									messages.push({msg:message+' join',login:'<b>'+login+'</b>'});
+									var newNode = new Ext.tree.TreeNode({id: "'"+message+"'", text: message , leaf: true});
+									Ext.getCmp('idTreeUserOnline').root.appendChild(newNode);
+									break;
+								case 'left':
+									str+="<b>Сервер</b>:"+message.join(',')+' left</br>';
+									var users_left = message;
+									messages.push({msg:message.join(',')+' left',login:'<b>'+login+'</b>'});
+									for(var i=0;i<users_left.length;i++){
+										var node = Ext.getCmp('idTreeUserOnline').getNodeById("'"+users_left[i]+"'");
+										if(node){
+											Ext.getCmp('idTreeUserOnline').root.removeChild(node);
+										}
+									}									
+									break;
+								default:
+							}
+						}
+						
+						Ext.getCmp('serverMessage').update(str);						
+					}					
 					crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
 				}
 				if(action=='login'){
 					if(r.responseObject.success){
 						messages = r.responseObject.msgs;
 						window.sid = r.responseObject.sid;
+						users_online = r.responseObject.users_online;
 						
 						runLoginedChat();
 					}
@@ -141,6 +183,7 @@ Ext.onReady(function(){
 	
 	var w = new Ext.Window({
 		resizable:false,
+		closable:false,
 		id:'windowChat',
 		shadow:false,
 		iconCls:'icon-comments',
@@ -198,7 +241,38 @@ Ext.onReady(function(){
 			iconCls:'icon-user',
 			handler:chatLogin
 		}]		
-	}).show();	
+	}).show();
+	
+	new Ext.Window({
+		id:'idWinUsersOnline',
+		title:'Пользователи онлайн',
+		closeAction:'hide',
+		layout:'fit',
+		closable:false,
+		width:170,
+		height:195,
+		items:[{
+			xtype:'treepanel',
+			id:'idTreeUserOnline',
+			autoScroll: true,
+			root: new Ext.tree.AsyncTreeNode({
+				expanded: true,
+				children: []
+			}),
+			rootVisible: false,
+			listeners: {
+				click: function(n){
+					//console.log(n.attributes.id);
+					//var newNode = new Ext.tree.TreeNode({id: "5", text: "foo", leaf: true});
+					//Ext.getCmp('idTreeUserOnline').root.appendChild(newNode);
+					//var node = Ext.getCmp('idTreeUserOnline').getNodeById('2');
+					//if(node){
+					//	Ext.getCmp('idTreeUserOnline').root.removeChild(node);
+					//}
+				}
+			}
+		}]
+	})
 });
 </script>
 </head>

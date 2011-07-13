@@ -11,6 +11,15 @@ function RandomString(length){
 	return str.substr(0, length);
 }
 
+function getUsersOnline(){
+	var users_online_str = [];
+	for(var p in clients){// Возможное место сбоя. Надо проверить.
+		users_online_str.push(p);
+	}
+			
+	return JSON.stringify(users_online_str);
+}
+
 http.createServer(function(req, res){
   	var parsed = url.parse(req.url,true),
 		callback = parsed.query.callback;
@@ -56,7 +65,7 @@ http.createServer(function(req, res){
 			for(var p in clients){// Возможное место сбоя. Надо проверить.
 				console.log(p);
 				try{
-					var answer = clients[p].callback + "({status:'success',login:'<b>Server</b>',msg:'"+login+" join'})";
+					var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'join',msg:'"+login+"'})";
 					clients[p].res.end(answer);
 				}
 				catch(e){
@@ -66,8 +75,7 @@ http.createServer(function(req, res){
 			}
 			
 			var sid = +new Date()+"_"+RandomString(5),
-				answer = callback+"({success:true,sid:'"+sid+"',msgs:["+str_msgs+"]})";
-			
+				answer = callback+"({success:true,sid:'"+sid+"',msgs:["+str_msgs+"],users_online:"+getUsersOnline()+"})";
 			
 			clients[login] = {
 				last_activity:+new Date(),
@@ -222,20 +230,20 @@ http.createServer(function(req, res){
 
 setInterval(function(){
 	var now = + new Date(),
-		user_left = '';
+		users_left = [];
 	for(var p in clients){// Возможное место сбоя. Надо проверить.
 		//console.log(now-clients[p].last_activity);
 		if(now-clients[p].last_activity>30000){
-			user_left+=p+" ";
+			users_left.push(p);
 			delete clients[p];
 		}
 	}
 	
-	if(user_left.length){
+	if(users_left.length){
 		for(var p in clients){// Возможное место сбоя. Надо проверить.
 			//console.log(p);
 			try{
-				var answer = clients[p].callback + "({status:'success',login:'<b>Server</b>',msg:'"+user_left+" left'})";
+				var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'left',msg:"+JSON.stringify(users_left)+"})";
 				clients[p].res.end(answer);
 			}
 			catch(e){
