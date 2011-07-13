@@ -1,0 +1,207 @@
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<link rel="stylesheet" type="text/css" href="http://moc-081.ru/ext/resources/css/ext-all.css" />
+	<script type="text/javascript" src="http://moc-081.ru/ext/adapter/ext/ext-base.js"></script>
+	<script type="text/javascript" src="http://moc-081.ru/ext/ext-all.js"></script>
+	<script src="http://vreshenie.ru/work/comet/cross-domain/extjs-cross-domain.js"></script>
+	<style>
+		.icon-user {
+			background-image: url("http://www.vreshenie.ru/resources/user.png") !important;
+		}
+		.icon-users {
+			background-image: url("http://www.vreshenie.ru/resources/group.png") !important;
+		}
+		.icon-pencil {
+			background-image: url("http://www.vreshenie.ru/resources/pencil.png") !important;
+		}		
+		.icon-comments {
+			background-image: url("http://www.vreshenie.ru/resources/comments.png") !important;
+		}		
+	</style>
+<script>
+var messages = [];//,
+	//chat_property = {login:'',sid:''};
+Ext.onReady(function(){
+	function sendMessage(login){
+		var msg = Ext.getCmp('idMsgChat').getValue();
+		if(msg.length!=0){
+			crossDomainRequest('sendMessage',{login:window.login,sid:window.sid,msg:msg,action:'sendMessage'})
+		}
+	}
+
+	function runLoginedChat(){
+		var win = Ext.getCmp('windowChat');
+		win.setTitle('Cross-domain comet chat on ExtJS+nodeJS');
+		
+		var login = Ext.getCmp('login');			
+		win.items.items[1].el.fadeOut({callback:function(){
+			login.hide();
+		}});
+		
+		var buttonLogin = Ext.getCmp('idLoginButton');
+		buttonLogin.setText('Send');
+		buttonLogin.setIconClass('icon-pencil');
+		buttonLogin.setHandler(function(){
+			sendMessage(login);
+			Ext.getCmp('idMsgChat').setValue('');
+		});
+		
+		var xy=win.getPosition();
+		var x = xy[0]-100;
+		var y = xy[1]-100;
+		win.el.shift({
+			x: x,
+			y: y,
+			duration:1,
+			//easing:effect,
+			callback:function(){
+				win.el.shift({
+					width:400,
+					callback:function(){
+						win.setWidth(400);
+						win.setHeight(300);
+						
+						var str=' ';
+						for(var i=0;i<messages.length;i++){
+							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+						}														
+						Ext.getCmp('serverMessage').update(str);
+						
+						crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
+						Ext.getCmp('idMsgChat').show();
+						Ext.getCmp('serverMessage').show();
+						Ext.getCmp('idUsersOnline').show();
+					}
+				});
+			}
+		});
+	}
+	
+	function crossDomainRequest(action,params){
+		Ext.Ajax.request({
+			timeout:300,
+			//url: 'http://node2.tw1.ru/',
+			url: 'http://127.0.0.1:1337/',
+			params:params || {},
+			scriptTag: true,
+			success: function(r){
+				var message = r.responseObject.msg;
+				var login = r.responseObject.login;
+				//console.log(message);
+				//console.log(r);
+				if(action=='getMessage'){
+					if(!r.responseObject.reconnect){
+						messages.push({msg:message,login:login});
+						var str=' ';
+						for(var i=0;i<messages.length;i++){
+							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+						}														
+						Ext.getCmp('serverMessage').update(str);
+					}
+					crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
+				}
+				if(action=='login'){
+					if(r.responseObject.success){
+						messages = r.responseObject.msgs;
+						window.sid = r.responseObject.sid;
+						
+						runLoginedChat();
+					}
+					else{
+						Ext.Msg.alert('Error', r.responseObject.error);
+					}
+					//console.log(r.responseObject);
+				}
+				if(action=='sendMessage'){}
+				if(action=='usersOnline'){
+					messages.push({login:r.responseObject.login,msg:r.responseObject.msg});
+					var str=' ';
+					for(var i=0;i<messages.length;i++){
+						str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+					}
+					Ext.getCmp('serverMessage').update(str);
+				}
+			},			
+			failure:function(){
+				console.log('failure');
+				Ext.Msg.alert('Error','Critical error on server');
+				if(action=='getMessage'){
+					crossDomainRequest('getMessage',{login:window.login,action:'getMessage'});
+				}				
+			}
+		});
+	}
+	
+	function chatLogin(){
+		var login = Ext.getCmp('login').getValue();
+		window.login=login;
+		crossDomainRequest('login',{login:login,action:'login'});
+	}
+	
+	var w = new Ext.Window({
+		resizable:false,
+		id:'windowChat',
+		shadow:false,
+		iconCls:'icon-comments',
+		title:'Chat',
+		width:270,
+		height:95,
+		layout:'form',
+		bodyStyle:'padding:5px 5px 0',
+		items:[{
+			id:'serverMessage',
+			bodyStyle:'padding:5px 5px',
+			height:230,
+			hidden:true,
+			autoScroll:true,
+			html:'Place for massages'
+		},{
+			id:'login',
+			xtype:'textfield',
+			fieldLabel:'Input nick',
+			listeners: {
+				specialkey: function(field, e){
+					if (e.getKey() == e.ENTER){
+						chatLogin();
+					}
+				}
+			}
+		}],
+		bbar:[{
+			id:'idMsgChat',
+			xtype: 'textfield',
+			width:260,
+			hidden:true,			
+			listeners: {
+				specialkey: function(field, e){
+					if (e.getKey() == e.ENTER){
+						var msg = Ext.getCmp('idMsgChat');
+						if(msg.getValue().length>0){
+							sendMessage(w.login);
+							Ext.getCmp('idMsgChat').setValue('');
+						}
+					}
+				}
+			}
+		},'->',{
+			id:'idUsersOnline',
+			text:'Users',
+			iconCls:'icon-users',
+			hidden:true,
+			handler:function(){
+				crossDomainRequest('usersOnline',{login:window.login,sid:window.sid,action:'getUsersOnline'});
+			}
+		},'','',{
+			id:'idLoginButton',
+			text:'Enter',
+			iconCls:'icon-user',
+			handler:chatLogin
+		}]		
+	}).show();	
+});
+</script>
+</head>
+<body>
+</body>
+</html>
