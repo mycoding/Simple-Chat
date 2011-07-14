@@ -20,6 +20,11 @@
 		}		
 	</style>
 <script>
+function RandomString(length){
+	var str = '';
+	for ( ; str.length < length; str += Math.random().toString(36).substr(2) );
+	return str.substr(0, length);
+}
 var messages = [],
 	users_online = [];//,
 	//chat_property = {login:'',sid:''};
@@ -29,6 +34,12 @@ Ext.onReady(function(){
 		if(msg.length!=0){
 			crossDomainRequest('sendMessage',{login:window.login,sid:window.sid,msg:msg,action:'sendMessage'})
 		}
+	}
+	
+	function bot(){
+		Ext.getCmp('idMsgChat').setValue(window.login+" "+RandomString(30));
+		sendMessage(window.login);
+		setTimeout(bot,3000);
 	}
 
 	function runLoginedChat(){
@@ -65,7 +76,7 @@ Ext.onReady(function(){
 						
 						var str=' ';
 						for(var i=0;i<messages.length;i++){
-							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+							str+="<div>"+messages[i].login+":"+messages[i].msg+'</div>';
 						}
 						Ext.getCmp('serverMessage').update(str);
 												
@@ -84,11 +95,31 @@ Ext.onReady(function(){
 							treeUserOnline.root.appendChild(newNode);							
 						}
 						
+						Ext.getCmp('idSystemParams').setPosition(windowChatXY[0]-180,windowChatXY[1]);
+						Ext.getCmp('idSystemParams').show();
+						Ext.getCmp('idSystemParamsPlaceToReport').update("<b>Memory</b>:"+memory+"</br>"+"<b>Starttime</b>:"+starttime);
+						
+						
 						crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
+						//bot();
 					}
 				});
 			}
 		});
+	}
+	
+	function ScrollToBottom(last_div_id){
+		//id='msg_"+(++last_div_id)+"'
+		//this.body.scrollTo('top', top-25);
+		//messages
+		var d = Ext.getCmp('serverMessage').body.dom;
+		d.scrollTop = d.scrollHeight - d.offsetHeight + 20;		
+		Ext.getCmp('serverMessage').body.scrollTo('top', d.scrollTop,{
+			duration:0.75,
+			callback:function(){
+				//Ext.fly('msg_'+last_div_id).highlight('#cadaf9');
+			}
+		});		
 	}
 	
 	function crossDomainRequest(action,params){
@@ -105,26 +136,30 @@ Ext.onReady(function(){
 				//console.log(r);
 				if(action=='getMessage'){
 					if(!r.responseObject.reconnect){
+						var last_div_id;
 						if(login!='Server'){
 							messages.push({msg:message,login:login});
 						}
 						var str=' ';
 						
 						for(var i=0;i<messages.length;i++){
-							str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+							if(i==messages.length-1){
+								last_div_id = i;
+							}
+							str+="<div id='msg_"+i+"'>"+messages[i].login+":"+messages[i].msg+'</div>';
 						}
 												
 						if(login=='Server'){
 							var action_server = r.responseObject.action_server;							
 							switch(action_server){
 								case 'join':
-									str+="<b>Server</b>:"+message+' join</br>';
+									str+="<div id='msg_"+(++last_div_id)+"'><b>Server</b>:"+message+' join</div>';
 									messages.push({msg:message+' join',login:'<b>'+login+'</b>'});
 									var newNode = new Ext.tree.TreeNode({id: "'"+message+"'", text: message , leaf: true});
 									Ext.getCmp('idTreeUserOnline').root.appendChild(newNode);
 									break;
 								case 'left':
-									str+="<b>Сервер</b>:"+message.join(',')+' left</br>';
+									str+="<div id='msg_"+(++last_div_id)+"'><b>Сервер</b>:"+message.join(',')+' left</div>';
 									var users_left = message;
 									messages.push({msg:message.join(',')+' left',login:'<b>'+login+'</b>'});
 									for(var i=0;i<users_left.length;i++){
@@ -137,8 +172,17 @@ Ext.onReady(function(){
 								default:
 							}
 						}
-						
-						Ext.getCmp('serverMessage').update(str);						
+						if(r.responseObject.memory){
+							memory = (function(){
+								var bytes = r.responseObject.memory,
+									megabytes = bytes / (1024*1024);
+									megabytes = Math.round(megabytes*10)/10;
+								return megabytes+" mbs";
+							})();
+							Ext.getCmp('idSystemParamsPlaceToReport').update("<b>Memory</b>:"+memory+"</br>"+"<b>Starttime</b>:"+starttime);
+						}
+						Ext.getCmp('serverMessage').update(str);
+						ScrollToBottom(last_div_id);
 					}					
 					crossDomainRequest('getMessage',{login:window.login,sid:window.sid,action:'getMessage'});
 				}
@@ -147,6 +191,35 @@ Ext.onReady(function(){
 						messages = r.responseObject.msgs;
 						window.sid = r.responseObject.sid;
 						users_online = r.responseObject.users_online;
+						starttime = (function(){
+							var start = r.responseObject.starttime,
+								now = +new Date();
+							var timeWork = now - start;
+							if(timeWork<1000){
+								return timeWork+" mls";
+							}
+							timeWork /=1000;
+							if(timeWork<60){
+								return timeWork.toFixed(0)+" seconds";
+							}
+							timeWork /=60;
+							if(timeWork<60){
+								return timeWork.toFixed(0)+" minutes";
+							}
+							timeWork /=60;
+							if(timeWork<24){
+								return timeWork.toFixed(0)+" hours";
+							}
+							timeWork /=24;
+							return timeWork.toFixed(0)+" days";
+						})();
+						memory = (function(){
+							var bytes = r.responseObject.memory,
+								megabytes = bytes / (1024*1024);
+								megabytes = Math.round(megabytes*10)/10;
+							return megabytes+" mbs";
+						})();
+						
 						
 						runLoginedChat();
 					}
@@ -160,7 +233,7 @@ Ext.onReady(function(){
 					messages.push({login:r.responseObject.login,msg:r.responseObject.msg});
 					var str=' ';
 					for(var i=0;i<messages.length;i++){
-						str+=""+messages[i].login+":"+messages[i].msg+'</br>';
+						str+="<div>"+messages[i].login+":"+messages[i].msg+'</div>';
 					}
 					Ext.getCmp('serverMessage').update(str);
 				}
@@ -245,9 +318,10 @@ Ext.onReady(function(){
 	
 	new Ext.Window({
 		id:'idWinUsersOnline',
-		title:'Пользователи онлайн',
+		title:'User online',
 		closeAction:'hide',
 		layout:'fit',
+		shadow:false,
 		closable:false,
 		width:170,
 		height:195,
@@ -272,6 +346,21 @@ Ext.onReady(function(){
 				}
 			}
 		}]
+	});
+	
+	new Ext.Window({
+		id:'idSystemParams',
+		title:'System params',
+		layout:'fit',
+		shadow:false,
+		closable:false,
+		width:170,
+		height:90,
+		items:{
+			bodyStyle:'padding:5px 5px',
+			id:'idSystemParamsPlaceToReport',
+			html:'Привет'
+		}
 	})
 });
 </script>

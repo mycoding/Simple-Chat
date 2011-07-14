@@ -2,6 +2,13 @@ http = require('http');
 url = require('url');
 sys = require('sys');
 
+starttime =+new Date();
+mem = process.memoryUsage();
+// every 10 seconds poll for the memory.
+setInterval(function(){
+	mem = process.memoryUsage();	
+},1000);
+
 clients = {};
 messages = [];
 	
@@ -30,13 +37,25 @@ http.createServer(function(req, res){
 	}
 	var action = parsed.query.action;
 
-	console.log(action);
+	//console.log(action);
 
 	switch(action){
 		case 'login':
 			var login = parsed.query.login;
+			
+			if(login=="Server"){
+				var answer = callback+"({success:false,error:'This name is busy'})";
+				res.end(answer);
+				break;
+			}
+			if(/'|"|<|>/.test(login)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
 			if(!login){
-				var answer = callback+"({success:false,error:'Login wasn\'t get on the server.'})";
+				var answer = callback+"({success:false,error:'Login was not get on the server.'})";
 				res.end(answer);
 				break;
 			}
@@ -65,7 +84,7 @@ http.createServer(function(req, res){
 			for(var p in clients){// Возможное место сбоя. Надо проверить.
 				console.log(p);
 				try{
-					var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'join',msg:'"+login+"'})";
+					var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'join',msg:'"+login+"',memory:"+mem.rss+"})";
 					clients[p].res.end(answer);
 				}
 				catch(e){
@@ -75,7 +94,7 @@ http.createServer(function(req, res){
 			}
 			
 			var sid = +new Date()+"_"+RandomString(5),
-				answer = callback+"({success:true,sid:'"+sid+"',msgs:["+str_msgs+"],users_online:"+getUsersOnline()+"})";
+				answer = callback+"({success:true,sid:'"+sid+"',msgs:["+str_msgs+"],users_online:"+getUsersOnline()+",memory:'"+mem.rss+"',starttime:'"+starttime+"'})";
 			
 			clients[login] = {
 				last_activity:+new Date(),
@@ -88,6 +107,19 @@ http.createServer(function(req, res){
 		case 'getMessage':
 			var login = parsed.query.login,
 				sid = parsed.query.sid;
+			
+			if(/'|"|<|>/.test(login)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
+			if(/'|"|<|>/.test(sid)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+						
 			if(!login){
 				var answer = callback+"({success:false,error:'Login wasn\'t get on the server.'})";
 				res.end(answer);
@@ -118,9 +150,10 @@ http.createServer(function(req, res){
 			}
 			
 			setTimeout(function(){// Возможное место сбоя. Надо проверить и переписать.
-				var answer = callback+"({status:'success',reconnect:true})";
+				var answer = callback+"({status:'success',reconnect:true,memory:'"+mem.rss+"'})";
 				try{
-					res.end(answer);
+					//res.end(answer);
+					clients[login]['res'](answer);
 				}
 				catch(e){
 					console.log('Ошибка');
@@ -133,6 +166,24 @@ http.createServer(function(req, res){
 			var login = parsed.query.login,
 				sid = parsed.query.sid,
 				msg = parsed.query.msg;
+			
+			if(/'|"|<|>/.test(msg)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
+			if(/'|"|<|>/.test(login)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
+			if(/'|"|<|>/.test(sid)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
 			
 			if(!login){
 				var answer = callback+"({success:false,error:'Login wasn\'t get on the server.'})";
@@ -166,7 +217,7 @@ http.createServer(function(req, res){
 			
 			for(var p in clients){// Возможное место сбоя. Надо проверить.
 				try{
-					var answer = clients[p].callback + "({status:'success',login:'"+login+"',msg:'"+msg+"'})";
+					var answer = clients[p].callback + "({status:'success',login:'"+login+"',msg:'"+msg+"',memory:'"+mem.rss+"'})";
 					clients[p].res.end(answer);
 				}
 				catch(e){
@@ -179,12 +230,29 @@ http.createServer(function(req, res){
 			var answer = callback+"({status:'success'})";
 			res.end(answer);
 			break;
-		case 'getUsersOnline':
-			console.log('IN');
+		case 'getUsersOnline':			
 			console.log(+new Date());
 			var login = parsed.query.login,
 				sid = parsed.query.sid,
 				msg = parsed.query.msg;
+			
+			if(/'|"|<|>/.test(msg)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
+			if(/'|"|<|>/.test(login)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
+			
+			if(/'|"|<|>/.test(sid)){
+				var answer = callback+"({success:false,error:'Do not use special chars'})";
+				res.end(answer);
+				break;
+			}
 			
 			if(!login){
 				var answer = callback+"({success:false,error:'Login wasn\'t get on the server.'})";
@@ -243,7 +311,7 @@ setInterval(function(){
 		for(var p in clients){// Возможное место сбоя. Надо проверить.
 			//console.log(p);
 			try{
-				var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'left',msg:"+JSON.stringify(users_left)+"})";
+				var answer = clients[p].callback + "({status:'success',login:'Server',action_server:'left',msg:"+JSON.stringify(users_left)+",memory:"+mem.rss+"})";
 				clients[p].res.end(answer);
 			}
 			catch(e){
